@@ -23,3 +23,23 @@ For endpoints which use a single type of grant, these can be used directly, or t
 
 If refresh tokens are to be used, the validation action must also return a boolean indicating whether a refresh token is to be created with the request.
 The endpoint wrapper must additionally be given an action to create and store an opaque refresh token, which must be recognized later by the validation action.
+
+## How to understand this library
+
+First, take a peak at https://www.rfc-editor.org/rfc/rfc7519 (JWTs)
+and https://www.rfc-editor.org/rfc/rfc6749 (oauth2).  Then read the
+test suite.  It implements some flows with all entities involved on
+the level of wai `Application`s.
+
+## Prior / related art
+
+If you are missing anything here, or if you want to write a short
+paragraph explaining what any of the list items is about, please open
+a PR or an issue.
+
+- https://hackage.haskell.org/package/servant-auth, https://hackage.haskell.org/package/servant-auth-server
+- https://github.com/NCrashed/servant-auth-token-api, https://github.com/NCrashed/servant-auth-token
+- https://github.com/tweag/webauthn
+- https://hackage.haskell.org/package/oidc-client
+- https://github.com/wireapp/wire-server/tree/develop/libs/hscim
+- https://github.com/dylex/hsaml2, https://github.com/wireapp/saml2-web-sso/

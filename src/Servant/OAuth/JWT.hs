@@ -1,8 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
+-- TODO: how much of this should live in `jose`?
 module Servant.OAuth.JWT
   ( -- * Tokens
     FromJWT (..),
@@ -12,11 +14,12 @@ module Servant.OAuth.JWT
     -- * Verification
     CompactJWT (..),
     SomeJWKResolver (..),
-    JWTSettings,
+    JWTSettings (..),
     checkAuthToken,
 
     -- * Signing
     JWTSignSettings (..),
+    mkTestJWTSignSettings,
     makeAccessToken,
   )
 where
@@ -27,34 +30,16 @@ import Control.Monad.Except
     MonadError (throwError),
     runExceptT,
   )
+import Control.Monad.IO.Class
+import Crypto.JOSE.JWK
 import Crypto.JWT
-  ( ClaimsSet,
-    Error,
-    HasKid (kid),
-    HeaderParam (HeaderParam),
-    JWK,
-    JWKAlg (JWSAlg),
-    JWSHeader,
-    JWTError (JWTClaimsSetDecodeError),
-    JWTValidationSettings,
-    NumericDate (NumericDate),
-    VerificationKeyStore,
-    claimExp,
-    claimIat,
-    claimSub,
-    decodeCompact,
-    encodeCompact,
-    jwkAlg,
-    jwkKid,
-    newJWSHeader,
-    signClaims,
-    string,
-    verifyClaims,
-  )
+import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
+import Data.Text.Strict.Lens (utf8)
 import Data.Time
+import GHC.Generics
 import Servant.OAuth.ResourceServer.Types
 import Web.HttpApiData
 
@@ -83,7 +68,11 @@ instance (ToJWT a) => ToJWT (Maybe a) where
   consClaims Nothing = id
 
 -- | Newtype for `sub` claims. Use with DerivingVia for FromJWT and ToJWT instances.
-newtype ClaimSub a = ClaimSub a deriving (Eq, Ord, Show)
+newtype ClaimSub a = ClaimSub a deriving (Eq, Ord, Show, Generic)
+
+instance FromJSON a => FromJSON (ClaimSub a)
+
+instance ToJSON a => ToJSON (ClaimSub a)
 
 instance (FromHttpApiData a) => FromJWT (ClaimSub a) where
   fromJWT claims =
@@ -118,18 +107,45 @@ data JWTSignSettings = JWTSignSettings
     jwtInitialClaims :: ClaimsSet,
     jwtDuration :: NominalDiffTime
   }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON JWTSignSettings
+
+instance ToJSON JWTSignSettings
+
+-- | Generate a simple set of crypto credentials for a token server.  Get familiar with `jose`
+-- if you want a `JWTSignSettings` that is ready for production.  Start with
+-- `hs-jose/example/Main.hs`.
+mkTestJWTSignSettings :: MonadIO m => m JWTSignSettings
+mkTestJWTSignSettings =
+  JWTSignSettings
+    <$> liftIO (tweak <$> genJWK (OKPGenParam Ed25519))
+    <*> pure emptyClaimsSet
+    <*> pure 5
+  where
+    tweak k = f k
+      where
+        f = (jwkUse ?~ Sig) . (jwkKeyOps ?~ [Sign, Verify]) . (jwkKid ?~ kid')
+        -- FUTUREWORK: _jwkAlg = Nothing, _jwkX5u = Nothing, _jwkX5cRaw = Nothing, _jwkX5t = Nothing, _jwkX5tS256 = Nothing
+        -- (https://www.rfc-editor.org/rfc/rfc7517#section-4)
+        h = view thumbprint k :: Digest SHA256
+        kid' = view (re (base64url . digest) . utf8) h
 
 -- | Creates a JWT from User entity and a signing key valid for a given length of time.
 -- The JWK in the settings must be a valid signing key.
-makeAccessToken :: (ToJWT a) => JWTSignSettings -> a -> IO CompactJWT
+makeAccessToken ::
+  forall m e a.
+  (MonadIO m, MonadRandom m, MonadError e m, AsError e, ToJWT a) =>
+  JWTSignSettings ->
+  a ->
+  m CompactJWT
 makeAccessToken settings x = do
-  now <- getCurrentTime
+  now <- liftIO getCurrentTime
+  hdr <- makeJWSHeader (jwtSignKey settings)
   let cset =
         jwtInitialClaims settings
           & claimExp ?~ NumericDate (addUTCTime (jwtDuration settings) now)
           & claimIat ?~ NumericDate now
           & consClaims x
-      Just (JWSAlg kalg) = jwtSignKey settings ^. jwkAlg -- requires valid key
-      hdr = newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwtSignKey settings ^. jwkKid)
-  Right tok <- runExceptT @Error $ signClaims (jwtSignKey settings) hdr cset
+  tok <- signClaims (jwtSignKey settings) hdr cset
   return . CompactJWT . T.decodeUtf8 . BL.toStrict . encodeCompact $ tok
