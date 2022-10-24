@@ -1,49 +1,58 @@
-name:                servant-oauth-server
-version:             0.1.0.0
-synopsis:            OAuth2 bearer token auth and token endpoint for Servant
-description:         Defines Servant API combinators which require or check for OAuth2 bearer token authentication (with JWT-encoded tokens), verify, and capture claims.
-                     Also includes a token endpoint implementation and utilities for verifying common types of assertion grants (for social login).
-homepage:            https://github.com/george-steel/servant-oauth-server#readme
-license:             BSD3
-license-file:        LICENSE
-author:              George Steel
-maintainer:          george.steel@gmail.com
-copyright:           2018-2019 Satsuma Labs, 2019-2021 George Steel
-category:            Web
-build-type:          Simple
-extra-source-files:  README.md
-cabal-version:       >=1.10
+name:               servant-oauth-server
+version:            0.1.0.0
+synopsis:           OAuth2 bearer token auth and token endpoint for Servant
+description:
+  Defines Servant API combinators which require or check for OAuth2 bearer token authentication (with JWT-encoded tokens), verify, and capture claims.
+  Also includes a token endpoint implementation and utilities for verifying common types of assertion grants (for social login).
+
+homepage:           https://github.com/george-steel/servant-oauth-server#readme
+license:            BSD3
+license-file:       LICENSE
+author:             George Steel
+maintainer:         george.steel@gmail.com
+copyright:          2018-2019 Satsuma Labs, 2019-2021 George Steel
+category:           Web
+build-type:         Simple
+extra-source-files: README.md
+cabal-version:      >=1.10
 
 library
-  hs-source-dirs:      src
-  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
-  exposed-modules:     Servant.OAuth.ResourceServer
-                     , Servant.OAuth.ResourceServer.Types
-                     , Servant.OAuth.JWT
-                     , Servant.OAuth.TokenServer
-                     , Servant.OAuth.TokenServer.Types
-                     , Servant.OAuth.Grants
-                     , Servant.OAuth.Grants.Facebook
-                     , Servant.OAuth.Grants.OpenId
-  build-depends:       base
-                     , aeson >= 2
-                     , bytestring
-                     , cryptonite >= 0.24
-                     , http-api-data
-                     , http-client
-                     , http-types
-                     , jose >= 0.10
-                       -- in case jose needs work: know that there is also https://github.com/tekul/jose-jwt
-                     , lens
-                     , mtl
-                     , servant
-                     , servant-server
-                     , string-conversions
-                     , text
-                     , time
-                     , unordered-containers
-                     , wai
-  default-language:    Haskell2010
+  hs-source-dirs:     src
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints
+
+  exposed-modules:
+    Servant.OAuth.Grants
+    Servant.OAuth.Grants.Facebook
+    Servant.OAuth.Grants.OpenId
+    Servant.OAuth.JWT
+    Servant.OAuth.ResourceServer
+    Servant.OAuth.ResourceServer.Types
+    Servant.OAuth.TokenServer
+    Servant.OAuth.TokenServer.Types
+
+  build-depends:
+      aeson                 >=2
+    , base
+    , bytestring
+    , cryptonite            >=0.24
+    , http-api-data
+    , http-client
+    , http-types
+    , jose                  >=0.10
+    , lens
+    , mtl
+    , servant
+    , servant-server
+    , string-conversions
+    , text
+    , time
+    , unordered-containers
+    , wai
+
+  -- in case jose needs work: know that there is also https://github.com/tekul/jose-jwt
+  default-language:   Haskell2010
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
@@ -87,33 +96,34 @@ test-suite spec
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
   main-is:            Spec.hs
-  other-modules:
-    ThingsSpec
-  build-depends:       base
-                     , aeson
-                     , bytestring
-                     , cryptonite
-                     , hspec
-                     , hspec-wai
-                     , http-api-data
-                     , http-client
-                     , http-types
-                     , jose
-                     , lens
-                     , lens-aeson
-                     , mtl
-                     , servant
-                     , servant-oauth-server
-                     , servant-server
-                     , string-conversions
-                     , text
-                     , time
-                     , transformers
-                     , unordered-containers
-                     , wai
-                     , wai-extra
-  build-tool-depends:  hspec-discover:hspec-discover
-  default-language:    Haskell2010
+  other-modules:      ThingsSpec
+  build-depends:
+      aeson
+    , base
+    , bytestring
+    , cryptonite
+    , hspec
+    , hspec-wai
+    , http-api-data
+    , http-client
+    , http-types
+    , jose
+    , lens
+    , lens-aeson
+    , mtl
+    , servant
+    , servant-oauth-server
+    , servant-server
+    , string-conversions
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , wai
+    , wai-extra
+
+  build-tool-depends: hspec-discover:hspec-discover
+  default-language:   Haskell2010
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns

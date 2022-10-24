@@ -148,7 +148,10 @@ instance ToJSON OAuthGrantRefresh where
 
 instance (ToJSON s, ToJSON a) => ToJSON (WithScope s a) where
   toJSON (WithScope Nothing x) = toJSON x
-  toJSON (WithScope (Just s) x) = let Object o = toJSON x in Object (KeyMap.insert "scope" (toJSON s) o)
+  toJSON (WithScope (Just s) x) =
+    case toJSON x of
+      Object o -> Object (KeyMap.insert "scope" (toJSON s) o)
+      _ -> Object (KeyMap.fromList [("scope", toJSON s)])
 
 instance FromForm OAuthGrantPassword where
   fromForm f =
@@ -160,7 +163,7 @@ instance FromForm OAuthGrantPassword where
 instance (KnownSymbol gt) => FromForm (OAuthGrantOpaqueAssertion gt) where
   fromForm f =
     parseUnique "grant_type" f >>= \pgt ->
-      if pgt == (symbolVal (Proxy @gt))
+      if pgt == symbolVal (Proxy @gt)
         then OAuthGrantOpaqueAssertion <$> parseUnique "assertion" f
         else Left "wrong grant type"
 

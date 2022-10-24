@@ -4,6 +4,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+-- FUTUREWORK: Create a newtype for ServantError with AsError instance and remove this line
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- |
 -- Module: Servant.OAuth.Server.TokenEndpoint
@@ -52,6 +54,7 @@ tokenEndpointNoRefresh signSettings doAuth = \case
     tok <- makeAccessToken signSettings claims
     return $ OAuthTokenSuccess tok (jwtDuration signSettings) Nothing
 
+-- FUTUREWORK: Create a newtype for ServantError with AsError instance
 instance AsError ServerError where
   _Error :: Prism' ServerError Error
   _Error = prism one two

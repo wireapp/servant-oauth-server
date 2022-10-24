@@ -54,6 +54,8 @@
               pkgs.cabal2nix
               pkgs.ormolu
               pkgs.hlint
+              pkgs.ghcid
+              pkgs.haskellPackages.cabal-fmt
 
               # For cabal
               pkgs.pkg-config
