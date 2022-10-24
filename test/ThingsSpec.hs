@@ -19,7 +19,7 @@ import Data.Text
 import Network.Wai
 import Network.Wai.Test (SRequest (..), simpleBody)
 import Servant.API
-import Servant.OAuth.Grants (OAuthGrantOpaqueAssertion (..), OpaqueToken (..))
+import Servant.OAuth.Grants (OAuthGrantCodePKCE (OAuthGrantCodePKCE), OAuthGrantOpaqueAssertion (..), OpaqueToken (..))
 import Servant.OAuth.Grants.Facebook
 import Servant.OAuth.JWT
 import Servant.OAuth.ResourceServer
@@ -29,6 +29,7 @@ import Servant.Server
 import Test.Hspec hiding (pending)
 import Test.Hspec.Wai
 import Test.Hspec.Wai.Matcher
+import Web.FormUrlEncoded (ToForm (toForm), urlEncodeForm)
 
 ------------------------------
 
@@ -63,20 +64,49 @@ instance MonadError ServerError AppM where
 ------------------------------
 
 type API =
+  "fb" :> FacebookAPI
+    :<|> "pkce" :> PkceAPI
+
+type FacebookAPI =
   "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
     :<|> "login" :> AuthRequired (ClaimSub Text) :> Get '[JSON] Text
     :<|> "login-optional" :> AuthOptional (ClaimSub Text) :> Get '[JSON] Text
 
+type PkceAPI =
+  "oauth" :> "token" :> OAuthTokenEndpoint' '[FormUrlEncoded] OAuthGrantCodePKCE
+
 app :: IO Application
 app =
-  pure . serveWithContext (Proxy @API) (testJWTSettings :. EmptyContext) $
-    ( runAppM . tokenEndpointNoRefresh testJWTSignSettings tokenHandler
+  pure . serveWithContext (Proxy @API) (testJWTSettings :. EmptyContext) $ api
+  where
+    api :: ServerT API Handler
+    api = fbAPI :<|> pkceAPI
+
+    fbAPI :: ServerT FacebookAPI Handler
+    fbAPI =
+      runAppM . tokenEndpointNoRefresh testJWTSignSettings tokenHandlerFB
         :<|> runAppM . resourceHandler . Just
         :<|> runAppM . resourceHandler
-    )
 
-tokenHandler :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
-tokenHandler = pure . ClaimSub . cs . show
+    pkceAPI :: ServerT PkceAPI Handler
+    pkceAPI = runAppM . tokenEndpointNoRefresh testJWTSignSettings tokenHandlerPKCE
+
+tokenHandlerFB :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
+tokenHandlerFB = pure . ClaimSub . cs . show
+
+-- | This is a dummy handler for testing
+-- A real handler usually takes:
+--   [ ] grant_type    :: Denotes the flow you are using. For Authorization Code (PKCE) use authorization_code.
+--   [ ] client_id     :: Your application's Client ID.
+--   [x] code_verifier :: Cryptographically random key that was used to generate the code_challenge passed to /authorize
+--   [x] code          :: The Authorization Code received from the initial /authorize call.
+--   [ ] redirect_uri  :: This is required only if it was set at the GET /authorize endpoint. The values must match.
+-- as parameters.
+-- In this handler the code_verifier should be verified against the code_challenge created in the /authorize call.
+-- Handler should respond with an ID token and an access token.
+-- At this stage this lib does not provide a `GET /authorize` endpoint AFAICT.
+tokenHandlerPKCE :: Monad m => OAuthGrantCodePKCE -> m (ClaimSub Text)
+tokenHandlerPKCE = pure . ClaimSub . cs . show
 
 resourceHandler :: Maybe (ClaimSub Text) -> AppM Text
 resourceHandler = pure . cs . encode
@@ -92,7 +122,17 @@ spec = with app $ do
 
       -- TODO: `200 {matchBody = bodyEquals $ encode (OAuthTokenSuccess (CompactJWT tokenPayload) 5 Nothing)}`
       -- (but that requires reproducible randomness in the token server.)
-      request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
+      request "POST" "fb/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
+        `shouldRespondWith` 200
+
+    it "failure case" $ do
+      pending
+
+  describe "PKCE flow" $ do
+    it "success case" $ do
+      let reqBody :: OAuthGrantCodePKCE
+          reqBody = OAuthGrantCodePKCE "foo" "bar"
+      request "POST" "pkce/oauth/token" [("Content-type", "application/x-www-form-urlencoded")] (urlEncodeForm . toForm $ reqBody)
         `shouldRespondWith` 200
 
     it "failure case" $ do
@@ -102,9 +142,9 @@ spec = with app $ do
     it "success case" $ do
       resp <- do
         let reqbody = OAuthGrantOpaqueAssertion (OpaqueToken tokenPayload) :: OAuthGrantFacebookAssertion
-        request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
+        request "POST" "fb/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
       let Just token = decode @Value (simpleBody resp) >>= (^? A.key ("access_token" :: Key) . A._String)
-      request "GET" "/login" [("Content-type", "application/json"), ("Authorization", "Bearer " <> cs token)] mempty
+      request "GET" "fb/login" [("Content-type", "application/json"), ("Authorization", "Bearer " <> cs token)] mempty
         `shouldRespondWith` 200 {matchBody = bodyEquals . cs . show $ "\"OAuthGrantOpaqueAssertion (OpaqueToken \\\"...\\\")\""}
 
     it "failure case" $ do

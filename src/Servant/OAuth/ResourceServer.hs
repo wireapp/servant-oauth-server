@@ -40,7 +40,7 @@ import Servant.OAuth.ResourceServer.Types
 import Servant.Server
 import Servant.Server.Internal
 
-instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthRequired claim :> api) context where
+instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim, Show claim) => HasServer (AuthRequired claim :> api) context where
   type ServerT (AuthRequired claim :> api) m = claim -> ServerT api m
 
   route ::
@@ -69,13 +69,14 @@ instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT cl
     ServerT (AuthRequired claim :> api) n
   hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
 
-instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthOptional claim :> api) context where
+instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim, Show claim) => HasServer (AuthOptional claim :> api) context where
   type ServerT (AuthOptional claim :> api) m = Maybe claim -> ServerT api m
 
   route ::
     ( HasServer api context,
       HasContextEntry context JWTSettings,
-      FromJWT claim
+      FromJWT claim,
+      Show claim
     ) =>
     Proxy (AuthOptional claim :> api) ->
     Context context ->
@@ -98,17 +99,21 @@ instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT cl
   hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
 
 -- | Authorization check returning the correct error messages.
-checkJwtLogin :: (FromJWT a) => JWTSettings -> Request -> DelayedIO (Maybe a)
+checkJwtLogin :: (FromJWT a, Show a) => JWTSettings -> Request -> DelayedIO (Maybe a)
 checkJwtLogin settings req = case lookup "Authorization" (requestHeaders req) of
   Nothing -> return Nothing
   Just hdr -> do
     tok <- case parseHeader hdr of
       Left msg -> delayedFailFatal . authErrorServant $ InvalidAuthRequest msg
-      Right t -> return t
+      Right t -> do
+        liftIO $ putStrLn $ "Token: " <> show t
+        pure t
     mauth <- liftIO $ checkAuthToken settings tok
     case mauth of
       Left err -> delayedFailFatal . authErrorServant . InvalidToken . pack . show $ err
-      Right auth -> return (Just auth)
+      Right auth -> do
+        liftIO $ putStrLn $ "auth: " <> show auth
+        return (Just auth)
 
 -- | Convert an authorization error into a 'ServantErr' with correct response code and body
 authErrorServant :: AuthError -> ServerError

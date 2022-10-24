@@ -88,6 +88,7 @@ data OAuthGrantCodePKCE = OAuthGrantCodePKCE
   { gcp_code :: Text,
     gcp_code_verifier :: Text
   }
+  deriving (Show)
 
 -- | Adds a scope restriction to a grant.
 data WithScope s a = WithScope (Maybe s) a
